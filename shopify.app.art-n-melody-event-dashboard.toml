@@ -1,0 +1,25 @@
+# Learn more about configuring your app at:
+# https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "84ad78e10b01817331fb18f4a10b6927"
+
+application_url = "https://example.com"
+
+embedded = true
+
+name = "Art N Melody Event Dashboard"
+
+[webhooks]
+api_version = "2026-10"
+
+[access_scopes]
+scopes = "read_orders"
+
+[auth]
+redirect_urls = [
+  "https://example.com/api/auth"
+]
+
+[build]
+automatically_update_urls_on_dev = true
+include_config_on_deploy = true
