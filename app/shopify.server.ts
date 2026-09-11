@@ -7,8 +7,13 @@ import {
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import prisma from "./db.server";
 
+// This public client ID must match the Shopify app configuration that is
+// installed in the store. Keeping it in one place prevents App Bridge from
+// issuing session tokens for a different app, which appears as a 401 page.
+export const SHOPIFY_API_KEY = "84ad78e10b01817331fb18f4a10b6927";
+
 const shopify = shopifyApp({
-  apiKey: process.env.SHOPIFY_API_KEY,
+  apiKey: SHOPIFY_API_KEY,
   apiSecretKey: process.env.SHOPIFY_API_SECRET || "",
   apiVersion: ApiVersion.October25,
   scopes: process.env.SCOPES?.split(","),
