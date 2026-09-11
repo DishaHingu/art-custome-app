@@ -22,6 +22,14 @@ type Order = {
   sessions: EventSession[];
 };
 
+const NEW_ORDER_DAYS = 30;
+
+function isNewOrder(createdAt: string) {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - NEW_ORDER_DAYS);
+  return new Date(createdAt) >= cutoff;
+}
+
 function parseSession(
   event: string,
   variantTitle: string | null,
@@ -134,15 +142,27 @@ export default function Index() {
   const { orders } = useLoaderData<typeof loader>();
 
   const [search, setSearch] = useState("");
+  const [orderPeriod, setOrderPeriod] = useState<"new" | "old" | "all">(
+    "new",
+  );
 
   const filteredOrders = useMemo(() => {
     const value = search.toLowerCase().trim();
 
-    if (!value) {
-      return orders;
-    }
-
     return orders.filter((order) => {
+      const matchesPeriod =
+        orderPeriod === "all" ||
+        (orderPeriod === "new" && isNewOrder(order.createdAt)) ||
+        (orderPeriod === "old" && !isNewOrder(order.createdAt));
+
+      if (!matchesPeriod) {
+        return false;
+      }
+
+      if (!value) {
+        return true;
+      }
+
       const orderText = [
         order.name,
         order.customerName,
@@ -159,12 +179,16 @@ export default function Index() {
 
       return orderText.includes(value);
     });
-  }, [orders, search]);
+  }, [orderPeriod, orders, search]);
 
   const totalSessions = orders.reduce(
     (total, order) => total + order.sessions.length,
     0,
   );
+  const newOrderCount = orders.filter((order) =>
+    isNewOrder(order.createdAt),
+  ).length;
+  const oldOrderCount = orders.length - newOrderCount;
 
   return (
     <s-page heading="Art N Melody Event Dashboard">
@@ -180,12 +204,43 @@ export default function Index() {
             <s-heading>Total Sessions</s-heading>
             <s-text>{totalSessions}</s-text>
           </s-box>
+
+          <s-box>
+            <s-heading>New Orders (30 days)</s-heading>
+            <s-text>{newOrderCount}</s-text>
+          </s-box>
+
+          <s-box>
+            <s-heading>Older Orders</s-heading>
+            <s-text>{oldOrderCount}</s-text>
+          </s-box>
         </s-stack>
       </s-section>
 
       <s-section heading="Event & Session Orders">
 
         <s-stack direction="block" gap="base">
+
+          <s-stack direction="inline" gap="small">
+            <s-button
+              variant={orderPeriod === "new" ? "primary" : "secondary"}
+              onClick={() => setOrderPeriod("new")}
+            >
+              New orders ({newOrderCount})
+            </s-button>
+            <s-button
+              variant={orderPeriod === "old" ? "primary" : "secondary"}
+              onClick={() => setOrderPeriod("old")}
+            >
+              Older orders ({oldOrderCount})
+            </s-button>
+            <s-button
+              variant={orderPeriod === "all" ? "primary" : "secondary"}
+              onClick={() => setOrderPeriod("all")}
+            >
+              All orders ({orders.length})
+            </s-button>
+          </s-stack>
 
           <s-text-field
             label="Search orders, customers, events or sessions"
@@ -200,7 +255,11 @@ export default function Index() {
           {filteredOrders.length === 0 ? (
             <s-box padding="large">
               <s-text>
-                No orders found.
+                No {orderPeriod === "new"
+                  ? "new"
+                  : orderPeriod === "old"
+                    ? "older"
+                    : "matching"} orders found.
               </s-text>
             </s-box>
           ) : (
@@ -318,6 +377,10 @@ export default function Index() {
           <s-text>
             Orders are loaded directly from the
             Shopify Admin API.
+          </s-text>
+
+          <s-text>
+            New means orders placed in the last {NEW_ORDER_DAYS} days.
           </s-text>
 
         </s-stack>
