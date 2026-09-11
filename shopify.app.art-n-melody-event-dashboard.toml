@@ -17,7 +17,7 @@ scopes = "read_orders"
 
 [auth]
 redirect_urls = [
-  "https://art-custome-app-creh-8pbtsdf4o-dishahingu3007-4917.vercel.app/api/auth"
+  "https://art-custome-app-creh-8pbtsdf4o-dishahingu3007-4917.vercel.app/auth/callback"
 ]
 
 [build]
