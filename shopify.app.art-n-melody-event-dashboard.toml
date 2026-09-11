@@ -3,7 +3,7 @@
 
 client_id = "84ad78e10b01817331fb18f4a10b6927"
 
-application_url = "https://art-custome-app-creh-8pbtsdf4o-dishahingu3007-4917.vercel.app/"
+application_url = "https://art-custome-app-creh.vercel.app"
 
 embedded = true
 
@@ -17,7 +17,7 @@ scopes = "read_orders"
 
 [auth]
 redirect_urls = [
-  "https://art-custome-app-creh-8pbtsdf4o-dishahingu3007-4917.vercel.app/auth/callback"
+  ""https://art-custome-app-creh.vercel.app/auth/callback"
 ]
 
 [build]
