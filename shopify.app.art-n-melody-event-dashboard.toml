@@ -17,9 +17,8 @@ scopes = "read_orders"
 
 [auth]
 redirect_urls = [
-  ""https://art-custome-app-creh.vercel.app/auth/callback"
+  "https://art-custome-app-creh.vercel.app/auth/callback"
 ]
 
 [build]
 automatically_update_urls_on_dev = true
-include_config_on_deploy = true
