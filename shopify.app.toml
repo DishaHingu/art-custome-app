@@ -1,13 +1,13 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "e34f8c23556f091abcaf7f23d7b191a2"
+client_id = "84ad78e10b01817331fb18f4a10b6927"
 name = "Art N Melody Event Dashboard"
-application_url = "https://example.com"
+application_url = "https://art-custome-app-creh.vercel.app"
 embedded = true
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "write_products"
+scopes = "read_orders"
 
 [webhooks]
 api_version = "2026-10"
@@ -21,7 +21,7 @@ api_version = "2026-10"
   topics = [ "app/scopes_update" ]
 
 [auth]
-redirect_urls = [ "https://example.com/api/auth" ]
+redirect_urls = [ "https://art-custome-app-creh.vercel.app/auth/callback" ]
 
 [build]
 automatically_update_urls_on_dev = true

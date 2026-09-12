@@ -74,11 +74,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             displayFinancialStatus
             displayFulfillmentStatus
 
-            customer {
-              displayName
-              email
-            }
-
             lineItems(first: 50) {
               nodes {
                 quantity
@@ -127,10 +122,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         createdAt: order.createdAt,
         financialStatus: order.displayFinancialStatus,
         fulfillmentStatus: order.displayFulfillmentStatus,
-        customerName:
-          order.customer?.displayName || "Guest",
-        customerEmail:
-          order.customer?.email || "-",
+        // Customer fields need the separate read_customers scope. This
+        // dashboard uses only read_orders, so keep the order list available
+        // even when customer-data access has not been granted.
+        customerName: "Customer details unavailable",
+        customerEmail: "-",
         sessions,
       };
     }) || [];
