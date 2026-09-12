@@ -17,9 +17,15 @@ type Order = {
   createdAt: string;
   financialStatus: string | null;
   fulfillmentStatus: string | null;
-  customerName: string;
-  customerEmail: string;
   sessions: EventSession[];
+};
+
+type TableRow = EventSession & {
+  id: string;
+  orderName: string;
+  orderDate: string;
+  financialStatus: string;
+  fulfillmentStatus: string;
 };
 
 const NEW_ORDER_DAYS = 30;
@@ -78,6 +84,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               nodes {
                 quantity
                 title
+                variant {
+                  title
+                }
               }
             }
           }
@@ -101,11 +110,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       const sessions: EventSession[] = [];
 
       for (const item of order.lineItems?.nodes || []) {
-        // `title` is available through read_orders. Product and variant fields
-        // require read_products, so do not request them for this dashboard.
         const event = item.title || "Unknown Event";
-
-        const parsed = parseSession(event, null);
+        const parsed = parseSession(event, item.variant?.title || null);
 
         for (let i = 0; i < (item.quantity || 1); i++) {
           sessions.push(parsed);
@@ -118,11 +124,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         createdAt: order.createdAt,
         financialStatus: order.displayFinancialStatus,
         fulfillmentStatus: order.displayFulfillmentStatus,
-        // Customer fields need the separate read_customers scope. This
-        // dashboard uses only read_orders, so keep the order list available
-        // even when customer-data access has not been granted.
-        customerName: "Customer details unavailable",
-        customerEmail: "-",
         sessions,
       };
     }) || [];
@@ -157,8 +158,6 @@ export default function Index() {
 
       const orderText = [
         order.name,
-        order.customerName,
-        order.customerEmail,
         ...order.sessions.flatMap((session) => [
           session.event,
           session.date,
@@ -172,6 +171,59 @@ export default function Index() {
       return orderText.includes(value);
     });
   }, [orderPeriod, orders, search]);
+
+  const tableRows = useMemo<TableRow[]>(
+    () =>
+      filteredOrders.flatMap((order) =>
+        order.sessions.map((session, index) => ({
+          ...session,
+          id: `${order.id}-${index}`,
+          orderName: order.name,
+          orderDate: new Date(order.createdAt).toLocaleDateString(),
+          financialStatus: order.financialStatus || "-",
+          fulfillmentStatus: order.fulfillmentStatus || "-",
+        })),
+      ),
+    [filteredOrders],
+  );
+
+  const downloadExcel = () => {
+    const header = [
+      "Order",
+      "Order date",
+      "Event",
+      "Event date",
+      "Time",
+      "Session",
+      "Payment",
+      "Fulfillment",
+    ];
+    const escapeCsv = (value: string) => `"${value.replaceAll('"', '""')}"`;
+    const csv = [
+      header,
+      ...tableRows.map((row) => [
+        row.orderName,
+        row.orderDate,
+        row.event,
+        row.date,
+        row.time,
+        row.session,
+        row.financialStatus,
+        row.fulfillmentStatus,
+      ]),
+    ]
+      .map((row) => row.map(escapeCsv).join(","))
+      .join("\r\n");
+
+    const url = URL.createObjectURL(
+      new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" }),
+    );
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `event-orders-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   const totalSessions = orders.reduce(
     (total, order) => total + order.sessions.length,
@@ -234,15 +286,20 @@ export default function Index() {
             </s-button>
           </s-stack>
 
-          <s-text-field
-            label="Search orders, customers, events or sessions"
+          <s-stack direction="inline" gap="base" justifyContent="space-between">
+            <s-text-field
+              label="Search orders, events, dates or sessions"
             value={search}
             onInput={(event) => {
               setSearch(
                 (event.target as HTMLInputElement).value,
               );
             }}
-          />
+            />
+            <s-button onClick={downloadExcel} disabled={tableRows.length === 0}>
+              Download Excel (.csv)
+            </s-button>
+          </s-stack>
 
           {filteredOrders.length === 0 ? (
             <s-box padding="large">
@@ -255,103 +312,31 @@ export default function Index() {
               </s-text>
             </s-box>
           ) : (
-            filteredOrders.map((order) => (
-              <s-box
-                key={order.id}
-                padding="base"
-                borderWidth="base"
-                borderRadius="base"
-              >
-                <s-stack direction="block" gap="base">
-
-                  <s-stack
-                    direction="inline"
-                    gap="base"
-                    justifyContent="space-between"
-                  >
-                    <s-heading>
-                      Order {order.name}
-                    </s-heading>
-
-                    <s-text>
-                      {new Date(
-                        order.createdAt,
-                      ).toLocaleDateString()}
-                    </s-text>
-                  </s-stack>
-
-                  <s-divider />
-
-                  <s-stack direction="block" gap="small">
-
-                    <s-text>
-                      <strong>Customer:</strong>{" "}
-                      {order.customerName}
-                    </s-text>
-
-                    <s-text>
-                      <strong>Email:</strong>{" "}
-                      {order.customerEmail}
-                    </s-text>
-
-                    <s-text>
-                      <strong>Payment:</strong>{" "}
-                      {order.financialStatus || "-"}
-                    </s-text>
-
-                    <s-text>
-                      <strong>Fulfillment:</strong>{" "}
-                      {order.fulfillmentStatus || "-"}
-                    </s-text>
-
-                  </s-stack>
-
-                  <s-heading>
-                    Event Sessions
-                  </s-heading>
-
-                  {order.sessions.map(
-                    (session, index) => (
-                      <s-box
-                        key={`${order.id}-${index}`}
-                        padding="base"
-                        borderWidth="base"
-                        borderRadius="base"
-                        background="subdued"
-                      >
-                        <s-stack
-                          direction="block"
-                          gap="small"
-                        >
-
-                          <s-text>
-                            <strong>Event:</strong>{" "}
-                            {session.event}
-                          </s-text>
-
-                          <s-text>
-                            <strong>Date:</strong>{" "}
-                            {session.date}
-                          </s-text>
-
-                          <s-text>
-                            <strong>Time:</strong>{" "}
-                            {session.time}
-                          </s-text>
-
-                          <s-text>
-                            <strong>Session:</strong>{" "}
-                            {session.session}
-                          </s-text>
-
-                        </s-stack>
-                      </s-box>
-                    ),
-                  )}
-
-                </s-stack>
-              </s-box>
-            ))
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ borderCollapse: "collapse", minWidth: "900px", width: "100%" }}>
+                <thead>
+                  <tr>
+                    {["Order", "Order date", "Event", "Event date", "Time", "Session", "Payment", "Fulfillment"].map((heading) => (
+                      <th key={heading} style={{ borderBottom: "1px solid #c9cccf", padding: "12px 10px", textAlign: "left", whiteSpace: "nowrap" }}>{heading}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {tableRows.map((row) => (
+                    <tr key={row.id}>
+                      <td style={{ borderBottom: "1px solid #e1e3e5", padding: "12px 10px" }}>{row.orderName}</td>
+                      <td style={{ borderBottom: "1px solid #e1e3e5", padding: "12px 10px", whiteSpace: "nowrap" }}>{row.orderDate}</td>
+                      <td style={{ borderBottom: "1px solid #e1e3e5", padding: "12px 10px" }}>{row.event}</td>
+                      <td style={{ borderBottom: "1px solid #e1e3e5", padding: "12px 10px", whiteSpace: "nowrap" }}>{row.date}</td>
+                      <td style={{ borderBottom: "1px solid #e1e3e5", padding: "12px 10px", whiteSpace: "nowrap" }}>{row.time}</td>
+                      <td style={{ borderBottom: "1px solid #e1e3e5", padding: "12px 10px" }}>{row.session}</td>
+                      <td style={{ borderBottom: "1px solid #e1e3e5", padding: "12px 10px" }}>{row.financialStatus}</td>
+                      <td style={{ borderBottom: "1px solid #e1e3e5", padding: "12px 10px" }}>{row.fulfillmentStatus}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
 
         </s-stack>
@@ -369,6 +354,10 @@ export default function Index() {
           <s-text>
             Orders are loaded directly from the
             Shopify Admin API.
+          </s-text>
+
+          <s-text>
+            Use Download Excel to export the table currently shown.
           </s-text>
 
           <s-text>

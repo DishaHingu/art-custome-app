@@ -13,7 +13,7 @@ name = "Art N Melody Event Dashboard"
 api_version = "2026-10"
 
 [access_scopes]
-scopes = "read_orders"
+scopes = "read_orders,read_products"
 
 [auth]
 redirect_urls = [

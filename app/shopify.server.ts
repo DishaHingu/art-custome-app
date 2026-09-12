@@ -16,7 +16,7 @@ const shopify = shopifyApp({
   apiKey: SHOPIFY_API_KEY,
   apiSecretKey: process.env.SHOPIFY_API_SECRET || "",
   apiVersion: ApiVersion.October25,
-  scopes: (process.env.SCOPES || "read_orders")
+  scopes: (process.env.SCOPES || "read_orders,read_products")
     .split(",")
     .map((scope) => scope.trim())
     .filter(Boolean),
