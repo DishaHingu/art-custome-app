@@ -78,14 +78,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               nodes {
                 quantity
                 title
-
-                variant {
-                  title
-
-                  product {
-                    title
-                  }
-                }
               }
             }
           }
@@ -109,15 +101,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       const sessions: EventSession[] = [];
 
       for (const item of order.lineItems?.nodes || []) {
-        const event =
-          item.variant?.product?.title ||
-          item.title ||
-          "Unknown Event";
+        // `title` is available through read_orders. Product and variant fields
+        // require read_products, so do not request them for this dashboard.
+        const event = item.title || "Unknown Event";
 
-        const parsed = parseSession(
-          event,
-          item.variant?.title || null,
-        );
+        const parsed = parseSession(event, null);
 
         for (let i = 0; i < (item.quantity || 1); i++) {
           sessions.push(parsed);
