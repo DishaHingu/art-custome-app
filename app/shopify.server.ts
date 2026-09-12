@@ -16,7 +16,10 @@ const shopify = shopifyApp({
   apiKey: SHOPIFY_API_KEY,
   apiSecretKey: process.env.SHOPIFY_API_SECRET || "",
   apiVersion: ApiVersion.October25,
-  scopes: process.env.SCOPES?.split(","),
+  scopes: (process.env.SCOPES || "read_orders")
+    .split(",")
+    .map((scope) => scope.trim())
+    .filter(Boolean),
   appUrl:
     process.env.SHOPIFY_APP_URL ||
     "https://art-custome-app-creh.vercel.app",

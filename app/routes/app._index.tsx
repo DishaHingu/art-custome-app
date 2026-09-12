@@ -94,7 +94,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     `,
   );
 
-  const responseJson = await response.json();
+  const responseJson = (await response.json()) as {
+    data?: { orders?: { nodes?: unknown[] } };
+    errors?: unknown[];
+  };
+
+  if (responseJson.errors?.length) {
+    console.error("Shopify orders query failed", responseJson.errors);
+    throw new Response("Unable to load orders from Shopify", { status: 502 });
+  }
 
   const orders: Order[] =
     responseJson.data?.orders?.nodes?.map((order: any) => {
