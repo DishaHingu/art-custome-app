@@ -7,7 +7,15 @@ const TAB_TITLE = "Art N Melody Orders (app)";
 let cachedToken: { token: string; expiresAt: number } | undefined;
 
 export function sheetsConfigured(shop: string) {
-  return Boolean(process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_PRIVATE_KEY && process.env.SHOPIFY_SYNC_SHOP === shop);
+  const allowedShops = (process.env.SHOPIFY_SYNC_SHOP || "")
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+  return Boolean(
+    process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL &&
+    process.env.GOOGLE_PRIVATE_KEY &&
+    allowedShops.includes(shop.toLowerCase()),
+  );
 }
 
 async function accessToken() {
@@ -23,7 +31,11 @@ async function accessToken() {
     method: "POST", signal: AbortSignal.timeout(10000),
     body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: `${unsigned}.${signature}` }),
   });
-  if (!response.ok) throw new Error("Google authentication failed. Check the service account credentials.");
+  if (!response.ok) {
+    throw new Error(
+      "Google service-account email and private key do not match. In Vercel, replace both Google variables using the same downloaded JSON file.",
+    );
+  }
   const data = await response.json() as { access_token: string; expires_in: number };
   cachedToken = { token: data.access_token, expiresAt: Date.now() + data.expires_in * 1000 };
   return data.access_token;
@@ -38,7 +50,11 @@ async function sheets<T>(path: string, method = "GET", body?: unknown): Promise<
   });
   if (!response.ok) {
     if (response.status === 401) cachedToken = undefined;
-    throw new Error(`Google Sheets request failed (${response.status}). Check spreadsheet sharing, API access and quota, then retry.`);
+    throw new Error(
+      response.status === 403
+        ? "Google cannot edit the demo Sheet. Share it with the exact client_email from the JSON file as Editor, then retry."
+        : "Google Sheets API could not be reached. Confirm it is enabled in the same Google Cloud project as the service account, then retry.",
+    );
   }
   return response.json() as Promise<T>;
 }

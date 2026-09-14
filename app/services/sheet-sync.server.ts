@@ -92,9 +92,11 @@ export async function processSyncQueue(shop: string) {
       }
     }
   } catch (error) {
-    // Do not persist SDK exceptions, which can contain request headers or payloads.
+    const message = error instanceof Error && error.message.startsWith("Google")
+      ? error.message
+      : "Sync could not connect. Check Google credentials, sheet access and Shopify permissions, then retry.";
     console.error("Google Sheets sync setup failed", error instanceof Error ? error.name : "UnknownError");
-    await db.sheetSyncState.update({ where: { shop }, data: { lastError: "Sync could not connect. Check Google credentials, sheet access and Shopify permissions, then retry." } });
+    await db.sheetSyncState.update({ where: { shop }, data: { lastError: message } });
   } finally {
     await db.sheetSyncState.updateMany({ where: { shop, leaseToken: token }, data: { leaseToken: null, leaseUntil: null } });
   }
