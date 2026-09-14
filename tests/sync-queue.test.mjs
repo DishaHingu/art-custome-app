@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { build } from "esbuild";
+import { createRequire } from 'module';
+
+var require = createRequire(import.meta.url);
+var module = { exports: {} };
 
 // Simulate durable storage and external calls; no customer credentials or live writes.
 const h = { jobs: new Map(), rows: [], writes: [], state: null, failWrite: false, duringWrite: null };

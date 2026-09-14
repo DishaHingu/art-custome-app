@@ -71,6 +71,8 @@ export default function Index() {
   }, [revalidator, sync.state]);
   const [selectedDate, setSelectedDate] = useState("");
   const availableDates = [...new Set(orders.flatMap((order) => order.sessions.map((session) => session.date)))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  const [selectedSession, setSelectedSession] = useState("");
+  const availableSessions = [...new Set(orders.flatMap((order) => order.sessions.map((session) => session.session)))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
   const [search, setSearch] = useState("");
   const [orderPeriod, setOrderPeriod] = useState<"new" | "old" | "all">(
@@ -121,9 +123,10 @@ export default function Index() {
           financialStatus: order.financialStatus || "-",
           fulfillmentStatus: order.fulfillmentStatus || "-",
         })).filter((row) => (!selectedDate || row.date === selectedDate) &&
+          (!selectedSession || row.session === selectedSession) &&
           (!search.trim() || [row.orderName, row.event, row.date, row.time, row.session].join(" ").toLowerCase().includes(search.toLowerCase().trim()))),
       ),
-    [filteredOrders, selectedDate, search],
+    [filteredOrders, selectedDate, selectedSession, search],
   );
 
   const sessionGroups = useMemo(() => {
@@ -250,6 +253,13 @@ export default function Index() {
                 {availableDates.map((date) => <option key={date} value={date}>{date === "-" ? "Date unavailable" : date}</option>)}
               </select>
             </label>
+            <label>
+              Session
+              <select value={selectedSession} onChange={(event) => setSelectedSession(event.target.value)} style={{ display: "block", padding: "10px", minWidth: "220px", marginTop: "6px" }}>
+                <option value="">All sessions</option>
+                {availableSessions.map((session) => <option key={session} value={session}>{session === "-" ? "Session unavailable" : session}</option>)}
+              </select>
+            </label>
             <s-button onClick={() => revalidator.revalidate()} disabled={revalidator.state !== "idle"}>
               {revalidator.state === "idle" ? "Refresh bookings" : "Refreshing…"}
             </s-button>
@@ -286,13 +296,13 @@ export default function Index() {
               );
             }}
             />
-            <s-button onClick={() => downloadExcel(sessionGroups.flatMap(([, rows]) => rows), selectedDate || "all-dates")} disabled={tableRows.length === 0}>
-              Download {selectedDate ? "selected date" : "all dates"} (.csv)
+            <s-button onClick={() => downloadExcel(sessionGroups.flatMap(([, rows]) => rows), `${selectedDate || "all-dates"}-${selectedSession || "all-sessions"}`)} disabled={tableRows.length === 0}>
+              Download filtered results (.csv)
             </s-button>
           </s-stack>
 
           <s-heading>{tableRows.reduce((total, row) => total + row.places, 0)} booked places · {sessionGroups.length} date/session groups</s-heading>
-          <s-text>Counts and downloads follow the date, order period and search. The date CSV includes all matching sessions grouped together. Download individual sessions below for separate files.</s-text>
+          <s-text>Counts and downloads follow the date, session, order period and search. The CSV includes all matching sessions grouped together. Download individual sessions below for separate files.</s-text>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "12px" }}>
             {sessionGroups.map(([key, rows]) => (
               <div key={key} style={{ border: "1px solid #c9cccf", borderRadius: "8px", padding: "16px" }}>
