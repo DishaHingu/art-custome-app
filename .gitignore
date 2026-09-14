@@ -13,8 +13,6 @@ node_modules
 /prisma/dev.sqlite-journal
 database.sqlite
 
-.env
-.env.*
 
 package-lock.json
 yarn.lock
@@ -30,4 +28,4 @@ pnpm-lock.yaml
 .react-router/
 
 .vercel
-.env*
+config.bat

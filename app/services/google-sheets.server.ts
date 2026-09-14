@@ -6,27 +6,61 @@ export const SPREADSHEET_URL = `https://docs.google.com/spreadsheets/d/${SPREADS
 const TAB_TITLE = "Art N Melody Orders (app)";
 let cachedToken: { token: string; expiresAt: number } | undefined;
 
+type GoogleServiceAccount = {
+  client_email?: string;
+  private_key?: string;
+};
+
+function googleCredentials() {
+  const rawJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  if (rawJson) {
+    try {
+      const parsed = JSON.parse(rawJson) as GoogleServiceAccount;
+      if (parsed.client_email && parsed.private_key) {
+        return { email: parsed.client_email, privateKey: parsed.private_key };
+      }
+    } catch {
+      throw new Error("Google service-account JSON is invalid. Paste the complete downloaded JSON file into Vercel without changes.");
+    }
+    throw new Error("Google service-account JSON is missing client_email or private_key.");
+  }
+  return {
+    email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    privateKey: process.env.GOOGLE_PRIVATE_KEY,
+  };
+}
+
 export function sheetsConfigured(shop: string) {
   const allowedShops = (process.env.SHOPIFY_SYNC_SHOP || "")
     .split(",")
     .map((value) => value.trim().toLowerCase())
     .filter(Boolean);
   return Boolean(
-    process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL &&
-    process.env.GOOGLE_PRIVATE_KEY &&
+    googleCredentials().email &&
+    googleCredentials().privateKey &&
     allowedShops.includes(shop.toLowerCase()),
   );
 }
 
 async function accessToken() {
   if (cachedToken && cachedToken.expiresAt > Date.now() + 60000) return cachedToken.token;
-  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+  const credentials = googleCredentials();
+  const email = credentials.email;
+  const privateKey = credentials.privateKey?.replace(/\\n/g, "\n");
   if (!email || !privateKey) throw new Error("Google Sheets connection is not configured.");
   const now = Math.floor(Date.now() / 1000);
   const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
   const unsigned = `${encode({ alg: "RS256", typ: "JWT" })}.${encode({ iss: email, scope: "https://www.googleapis.com/auth/spreadsheets", aud: "https://oauth2.googleapis.com/token", iat: now, exp: now + 3600 })}`;
-  const signature = createSign("RSA-SHA256").update(unsigned).sign(privateKey, "base64url");
+  let signature: string;
+  try {
+    signature = createSign("RSA-SHA256")
+      .update(unsigned)
+      .sign(privateKey, "base64url");
+  } catch {
+    throw new Error(
+      "Google private key format is invalid. In Vercel, paste the full private_key value from the downloaded JSON, including BEGIN and END lines, and keep the \\n characters.",
+    );
+  }
   const response = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST", signal: AbortSignal.timeout(10000),
     body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: `${unsigned}.${signature}` }),
