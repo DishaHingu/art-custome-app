@@ -32,3 +32,35 @@ model Session {
   refreshToken        String?
   refreshTokenExpires DateTime?
 }
+
+model SheetSyncState {
+  shop          String   @id
+  spreadsheetId String
+  tabId         Int?
+  nextRow       Int      @default(2)
+  leaseToken    String?
+  leaseUntil    DateTime?
+  lastSyncedAt  DateTime?
+  lastError     String?
+}
+
+model SheetSyncJob {
+  shop       String
+  orderId    String
+  revision   Int      @default(1)
+  requestedAt DateTime @default(now())
+  attempts   Int      @default(0)
+  retryAt    DateTime @default(now())
+  deleted    Boolean  @default(false)
+  @@id([shop, orderId])
+  @@index([shop, retryAt])
+}
+
+model SheetSyncRow {
+  shop      String
+  orderId   String
+  lineId    String
+  rowNumber Int
+  @@id([shop, orderId, lineId])
+  @@unique([shop, rowNumber])
+}

@@ -12,6 +12,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (session) {
     await db.session.deleteMany({ where: { shop } });
   }
+  await db.sheetSyncJob.deleteMany({ where: { shop } });
 
   return new Response();
 };
