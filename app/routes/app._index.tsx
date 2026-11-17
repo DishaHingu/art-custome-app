@@ -371,30 +371,6 @@ export default function Index() {
 
       </s-section>
 
-      <s-section slot="aside" heading="Dashboard">
-        <s-stack direction="block" gap="base">
-
-          <s-text>
-            This dashboard displays Shopify orders
-            with their event date, time and session.
-          </s-text>
-
-          <s-text>
-            Orders are loaded directly from the
-            Shopify Admin API.
-          </s-text>
-
-          <s-text>
-            Use Download Excel to export the table currently shown.
-          </s-text>
-
-          <s-text>
-            New means orders placed in the last {NEW_ORDER_DAYS} days.
-          </s-text>
-
-        </s-stack>
-      </s-section>
-
     </s-page>
   );
 }
