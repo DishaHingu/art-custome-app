@@ -292,12 +292,20 @@ export default function Index() {
             }}
             />
             <s-button onClick={() => downloadExcel(sessionGroups.flatMap(([, rows]) => rows), `${selectedDate || "all-dates"}-${selectedSession || "all-sessions"}`)} disabled={tableRows.length === 0}>
+<<<<<<< HEAD
               Download workshop report (.xls)
+=======
+              Download filtered results (.csv)
+>>>>>>> 683e712b8c1d678d867f09ff273b865c39c5fafc
             </s-button>
           </s-stack>
 
           <s-heading>{tableRows.reduce((total, row) => total + row.places, 0)} booked places · {sessionGroups.length} date/session groups</s-heading>
+<<<<<<< HEAD
           <s-text>The workshop report includes product counts and separate participant lists by session. Select a workshop date for the full date report.</s-text>
+=======
+          <s-text>Counts and downloads follow the date, session, order period and search. The CSV includes all matching sessions grouped together. Download individual sessions below for separate files.</s-text>
+>>>>>>> 683e712b8c1d678d867f09ff273b865c39c5fafc
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "12px" }}>
             {sessionGroups.map(([key, rows]) => (
               <div key={key} style={{ border: "1px solid #c9cccf", borderRadius: "8px", padding: "16px" }}>
