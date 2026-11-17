@@ -19,6 +19,9 @@ type EventSession = {
 type TableRow = EventSession & {
   id: string;
   orderName: string;
+  customerName: string;
+  email: string;
+  product: string;
   orderDate: string;
   financialStatus: string;
   fulfillmentStatus: string;
@@ -119,6 +122,8 @@ export default function Index() {
           ...session,
           id: `${order.id}-${index}`,
           orderName: order.name,
+          customerName: order.customerName,
+          email: order.email,
           orderDate: new Date(order.createdAt).toLocaleDateString(),
           financialStatus: order.financialStatus || "-",
           fulfillmentStatus: order.fulfillmentStatus || "-",
@@ -141,42 +146,32 @@ export default function Index() {
   }, [tableRows]);
 
   const downloadExcel = (rows: TableRow[], label: string) => {
-    const header = [
-      "Order",
-      "Order date",
-      "Event",
-      "Event date",
-      "Time",
-      "Session",
-      "Payment",
-      "Fulfillment",
-    ];
-    const escapeCsv = (value: string) => {
-      const safe = /^[=+@\-\t\r\n]/.test(value) ? "'" + value : value;
-      return `"${safe.replaceAll('"', '""')}"`;
+    const timeMinutes = (value: string) => {
+      const match = value.match(/(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?/i);
+      if (!match) return Number.MAX_SAFE_INTEGER;
+      let hour = Number(match[1]) % 12;
+      if (match[3]?.toUpperCase() === "PM") hour += 12;
+      return hour * 60 + Number(match[2] || 0);
     };
-    const csv = [
-      header,
-      ...rows.map((row) => [
-        row.orderName,
-        row.orderDate,
-        row.event,
-        row.date,
-        row.time,
-        row.session,
-        row.financialStatus,
-        row.fulfillmentStatus,
-      ]),
-    ]
-      .map((row) => row.map(escapeCsv).join(","))
-      .join("\r\n");
-
-    const url = URL.createObjectURL(
-      new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" }),
-    );
+    const sorted = [...rows].sort((a, b) => timeMinutes(a.time) - timeMinutes(b.time) || a.session.localeCompare(b.session) || a.orderName.localeCompare(b.orderName, undefined, { numeric: true }));
+    const products = [...new Set(sorted.map((row) => row.product || row.event))].sort((a, b) => a.localeCompare(b));
+    const sessions = [...new Map(sorted.map((row) => [`${row.time} · ${row.session}`, row])).entries()];
+    const esc = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+    const cell = (value: string | number) => `<td>${esc(String(value))}</td>`;
+    const summary = `<h2>Workshop status · ${esc(sorted[0]?.date || label)}</h2><table><thead><tr><th>Product</th>${sessions.map(([key]) => `<th>${esc(key)}<br>count</th>`).join("")}<th>Total</th></tr></thead><tbody>${products.map((product) => {
+      const counts = sessions.map(([, first]) => sorted.filter((row) => row.product === product && row.time === first.time && row.session === first.session).reduce((n, row) => n + row.places, 0));
+      return `<tr>${cell(product)}${counts.map((n) => cell(n)).join("")}${cell(counts.reduce((a, b) => a + b, 0))}</tr>`;
+    }).join("")}</tbody></table>`;
+    const blocks = sessions.map(([key, first]) => {
+      const group = sorted.filter((row) => row.time === first.time && row.session === first.session);
+      const heading = `${esc(key)} list`;
+      return `<h2>${heading}</h2><table><thead><tr>${["#", "Order ID", "Name", "Product type", "Email address", "Workshop date", "Session time"].map((x) => `<th>${x}</th>`).join("")}</tr></thead><tbody>${group.map((row, index) => `<tr>${cell(index + 1)}${cell(row.orderName)}${cell(row.customerName)}${cell(row.product || row.event)}${cell(row.email)}${cell(row.date)}${cell(row.time)}</tr>`).join("")}</tbody></table>`;
+    }).join("");
+    const html = `<!doctype html><html><head><meta charset="utf-8"><style>@page{size:landscape;margin:6mm;mso-page-orientation:landscape;mso-fit-to-page:1}body{font-family:Arial,sans-serif;font-size:8pt;color:#111}h1{font-size:14pt;margin:0 0 5px}h2{font-size:10pt;margin:8px 0 3px}table{border-collapse:collapse;width:100%;table-layout:fixed;margin-bottom:5px}th,td{border:1px solid #777;padding:2px 3px;text-align:left;overflow-wrap:anywhere}th{background:#eee}thead{display:table-header-group}tr{break-inside:avoid}*{print-color-adjust:exact}</style></head><body><h1>${esc(label.replaceAll("-", " "))} workshop</h1>${summary}${blocks}</body></html>`;
+    const url = URL.createObjectURL(new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" }));
     const link = document.createElement("a");
     link.href = url;
-    link.download = `event-orders-${label.replace(/[^a-z0-9_-]+/gi, "-").slice(0, 140)}.csv`;
+    link.download = `workshop-${label.replace(/[^a-z0-9_-]+/gi, "-").slice(0, 140)}.xls`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -297,12 +292,12 @@ export default function Index() {
             }}
             />
             <s-button onClick={() => downloadExcel(sessionGroups.flatMap(([, rows]) => rows), `${selectedDate || "all-dates"}-${selectedSession || "all-sessions"}`)} disabled={tableRows.length === 0}>
-              Download filtered results (.csv)
+              Download workshop report (.xls)
             </s-button>
           </s-stack>
 
           <s-heading>{tableRows.reduce((total, row) => total + row.places, 0)} booked places · {sessionGroups.length} date/session groups</s-heading>
-          <s-text>Counts and downloads follow the date, session, order period and search. The CSV includes all matching sessions grouped together. Download individual sessions below for separate files.</s-text>
+          <s-text>The workshop report includes product counts and separate participant lists by session. Select a workshop date for the full date report.</s-text>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "12px" }}>
             {sessionGroups.map(([key, rows]) => (
               <div key={key} style={{ border: "1px solid #c9cccf", borderRadius: "8px", padding: "16px" }}>

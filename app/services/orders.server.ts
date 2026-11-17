@@ -14,6 +14,7 @@ export type ShopifyOrder = {
   cancelledAt: string | null;
   displayFinancialStatus: string | null;
   displayFulfillmentStatus: string | null;
+  customer: { displayName: string; email: string | null } | null;
   lineItems: { nodes: LineItem[]; pageInfo: PageInfo };
 };
 // A structural interface also allows pagination/error cases to be tested without credentials.
@@ -24,6 +25,7 @@ export type AdminClient = {
 const ORDER_FIELDS = `
   id name createdAt updatedAt cancelledAt
   displayFinancialStatus displayFulfillmentStatus
+  customer { displayName email }
   lineItems(first: 20) {
     nodes { id title variantTitle quantity currentQuantity }
     pageInfo { hasNextPage endCursor }
@@ -130,8 +132,10 @@ export function dashboardOrder(order: ShopifyOrder) {
     id: order.id, name: order.name, createdAt: order.createdAt,
     financialStatus: order.displayFinancialStatus,
     fulfillmentStatus: order.displayFulfillmentStatus,
+    customerName: order.customer?.displayName || "",
+    email: order.customer?.email || "",
     sessions: order.lineItems.nodes.length ? order.lineItems.nodes.flatMap((item) =>
-      Array.from({ length: Math.max(1, item.quantity) }, () => ({ ...parseSession(item.title, item.variantTitle), places: item.quantity > 0 ? 1 : 0 })))
+      Array.from({ length: Math.max(1, item.currentQuantity) }, () => ({ ...parseSession(item.title, item.variantTitle), product: item.title, places: item.currentQuantity > 0 ? 1 : 0 })))
       : [{ ...parseSession("No line items", null), places: 0 }],
   };
 }
