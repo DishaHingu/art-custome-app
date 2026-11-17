@@ -145,6 +145,20 @@ export default function Index() {
     return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }));
   }, [tableRows]);
 
+  const selectedDateRows = useMemo<TableRow[]>(() => orders.flatMap((order) =>
+    order.sessions.map((session, index) => ({
+      ...session,
+      id: `${order.id}-${index}`,
+      orderName: order.name,
+      customerName: order.customerName,
+      email: order.email,
+      product: session.product,
+      orderDate: order.createdAt,
+      financialStatus: order.financialStatus || "-",
+      fulfillmentStatus: order.fulfillmentStatus || "-",
+    })).filter((row) => row.date === selectedDate),
+  ), [orders, selectedDate]);
+
   const downloadExcel = (rows: TableRow[], label: string) => {
     const timeMinutes = (value: string) => {
       const match = value.match(/(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?/i);
@@ -153,22 +167,29 @@ export default function Index() {
       if (match[3]?.toUpperCase() === "PM") hour += 12;
       return hour * 60 + Number(match[2] || 0);
     };
-    const sorted = [...rows].sort((a, b) => timeMinutes(a.time) - timeMinutes(b.time) || a.session.localeCompare(b.session) || a.orderName.localeCompare(b.orderName, undefined, { numeric: true }));
-    const products = [...new Set(sorted.map((row) => row.product || row.event))].sort((a, b) => a.localeCompare(b));
-    const sessions = [...new Map(sorted.map((row) => [`${row.time} · ${row.session}`, row])).entries()];
-    const esc = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
-    const cell = (value: string | number) => `<td>${esc(String(value))}</td>`;
-    const summary = `<h2>Workshop status · ${esc(sorted[0]?.date || label)}</h2><table><thead><tr><th>Product</th>${sessions.map(([key]) => `<th>${esc(key)}<br>count</th>`).join("")}<th>Total</th></tr></thead><tbody>${products.map((product) => {
-      const counts = sessions.map(([, first]) => sorted.filter((row) => row.product === product && row.time === first.time && row.session === first.session).reduce((n, row) => n + row.places, 0));
-      return `<tr>${cell(product)}${counts.map((n) => cell(n)).join("")}${cell(counts.reduce((a, b) => a + b, 0))}</tr>`;
-    }).join("")}</tbody></table>`;
-    const blocks = sessions.map(([key, first]) => {
-      const group = sorted.filter((row) => row.time === first.time && row.session === first.session);
-      const heading = `${esc(key)} list`;
-      return `<h2>${heading}</h2><table><thead><tr>${["#", "Order ID", "Name", "Product type", "Email address", "Workshop date", "Session time"].map((x) => `<th>${x}</th>`).join("")}</tr></thead><tbody>${group.map((row, index) => `<tr>${cell(index + 1)}${cell(row.orderName)}${cell(row.customerName)}${cell(row.product || row.event)}${cell(row.email)}${cell(row.date)}${cell(row.time)}</tr>`).join("")}</tbody></table>`;
-    }).join("");
-    const html = `<!doctype html><html><head><meta charset="utf-8"><style>@page{size:landscape;margin:6mm;mso-page-orientation:landscape;mso-fit-to-page:1}body{font-family:Arial,sans-serif;font-size:8pt;color:#111}h1{font-size:14pt;margin:0 0 5px}h2{font-size:10pt;margin:8px 0 3px}table{border-collapse:collapse;width:100%;table-layout:fixed;margin-bottom:5px}th,td{border:1px solid #777;padding:2px 3px;text-align:left;overflow-wrap:anywhere}th{background:#eee}thead{display:table-header-group}tr{break-inside:avoid}*{print-color-adjust:exact}</style></head><body><h1>${esc(label.replaceAll("-", " "))} workshop</h1>${summary}${blocks}</body></html>`;
-    const url = URL.createObjectURL(new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" }));
+    const sorted = [...rows].filter((row) => row.places > 0).sort((a, b) => timeMinutes(a.time) - timeMinutes(b.time) || a.orderName.localeCompare(b.orderName, undefined, { numeric: true }));
+    const products = [...new Set(sorted.map((row) => row.product || row.event))];
+    const sessions = [...new Map(sorted.map((row) => [row.time, row])).entries()].sort(([, a], [, b]) => timeMinutes(a.time) - timeMinutes(b.time));
+    const xml = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&apos;");
+    const cell = (value: string | number, style?: string) => `<Cell${style ? ` ss:StyleID="${style}"` : ""}><Data ss:Type="${typeof value === "number" ? "Number" : "String"}">${xml(String(value))}</Data></Cell>`;
+    const row = (values: (string | number)[], styles: (string | undefined)[] = []) => `<Row>${values.map((value, index) => cell(value, styles[index])).join("")}</Row>`;
+    const lines = [
+      row([`${label.replaceAll("-", " ")} workshop`], ["Title"]),
+      row(["WORKSHOP STATUS", `Date: ${sorted[0]?.date || label}`], ["Section", "Body"]),
+      row(["Product", ...sessions.map(([time]) => `Session ${time} count`), "Total"], ["Header"]),
+      ...products.map((product) => {
+        const counts = sessions.map(([, session]) => sorted.filter((item) => (item.product || item.event) === product && item.time === session.time).reduce((sum, item) => sum + item.places, 0));
+        return row([product, ...counts, counts.reduce((sum, count) => sum + count, 0)]);
+      }),
+      row(["Total counts", ...sessions.map(([, session]) => sorted.filter((item) => item.time === session.time).reduce((sum, item) => sum + item.places, 0)), sorted.reduce((sum, item) => sum + item.places, 0)], ["Header"]),
+      row([""]),
+      ...sessions.flatMap(([time], sessionIndex) => {
+        const group = sorted.filter((item) => item.time === time);
+        return [row([`Session ${sessionIndex + 1}: ${time} list`], ["Section"]), row(["#", "Order ID", "Name", "Product type", "Email address", "Workshop date", "Session time"], Array(7).fill("Header")), ...group.map((item, index) => row([index + 1, item.orderName, item.customerName, item.product || item.event, item.email, item.date, item.time]))];
+      }),
+    ];
+    const workbook = `<?xml version="1.0" encoding="UTF-8"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet" xmlns:x="urn:schemas-microsoft-com:office:excel"><Styles><Style ss:ID="Title"><Font ss:Bold="1" ss:Size="16"/></Style><Style ss:ID="Section"><Font ss:Bold="1" ss:Size="11"/><Interior ss:Color="#D9EAF7" ss:Pattern="Solid"/></Style><Style ss:ID="Header"><Font ss:Bold="1"/><Interior ss:Color="#EEEEEE" ss:Pattern="Solid"/></Style><Style ss:ID="Body"><Alignment ss:Vertical="Center"/></Style></Styles><Worksheet ss:Name="Workshop"><Table>${lines.join("")}</Table><WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel"><PageSetup><Layout x:Orientation="Landscape"/><PageMargins x:Bottom="0.25" x:Left="0.25" x:Right="0.25" x:Top="0.25"/></PageSetup><FitToPage/><Print><FitWidth>1</FitWidth><FitHeight>1</FitHeight></Print><Selected/></WorksheetOptions></Worksheet></Workbook>`;
+    const url = URL.createObjectURL(new Blob(["\uFEFF" + workbook], { type: "application/vnd.ms-excel;charset=utf-8" }));
     const link = document.createElement("a");
     link.href = url;
     link.download = `workshop-${label.replace(/[^a-z0-9_-]+/gi, "-").slice(0, 140)}.xls`;
@@ -291,21 +312,13 @@ export default function Index() {
               );
             }}
             />
-            <s-button onClick={() => downloadExcel(sessionGroups.flatMap(([, rows]) => rows), `${selectedDate || "all-dates"}-${selectedSession || "all-sessions"}`)} disabled={tableRows.length === 0}>
-<<<<<<< HEAD
-              Download workshop report (.xls)
-=======
-              Download filtered results (.csv)
->>>>>>> 683e712b8c1d678d867f09ff273b865c39c5fafc
+            <s-button onClick={() => downloadExcel(selectedDateRows, selectedDate)} disabled={!selectedDate || selectedDateRows.length === 0}>
+              Download date report (.xls)
             </s-button>
           </s-stack>
 
           <s-heading>{tableRows.reduce((total, row) => total + row.places, 0)} booked places · {sessionGroups.length} date/session groups</s-heading>
-<<<<<<< HEAD
-          <s-text>The workshop report includes product counts and separate participant lists by session. Select a workshop date for the full date report.</s-text>
-=======
-          <s-text>Counts and downloads follow the date, session, order period and search. The CSV includes all matching sessions grouped together. Download individual sessions below for separate files.</s-text>
->>>>>>> 683e712b8c1d678d867f09ff273b865c39c5fafc
+          <s-text>Select a workshop date to download its complete report. The report includes counts and session lists for all orders on that date, regardless of the dashboard search or session filter.</s-text>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "12px" }}>
             {sessionGroups.map(([key, rows]) => (
               <div key={key} style={{ border: "1px solid #c9cccf", borderRadius: "8px", padding: "16px" }}>
@@ -313,7 +326,7 @@ export default function Index() {
                   <s-heading>{rows[0].event}</s-heading>
                   <s-text>{rows[0].date} · {rows[0].time} · {rows[0].session}</s-text>
                   <s-text>{rows.reduce((total, row) => total + row.places, 0)} booked places · {new Set(rows.map((row) => row.orderName)).size} orders</s-text>
-                  <s-button onClick={() => downloadExcel(rows, `${rows[0].date}-${rows[0].event}-${rows[0].time}-${rows[0].session}`)}>Download this session (.csv)</s-button>
+                  <s-button onClick={() => downloadExcel(rows, `${rows[0].date}-${rows[0].event}-${rows[0].time}-${rows[0].session}`)}>Download this session (.xls)</s-button>
                 </s-stack>
               </div>
             ))}
