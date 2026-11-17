@@ -29,3 +29,4 @@ pnpm-lock.yaml
 
 .vercel
 config.bat
+.env.local
