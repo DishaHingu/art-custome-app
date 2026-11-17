@@ -43,6 +43,13 @@ function timeMinutes(value: string) {
   return hour * 60 + Number(match[2] || 0);
 }
 
+function workshopTitle(date: string) {
+  const match = date.match(/([A-Za-z]{3,9})\s+(\d{1,2})(?:st|nd|rd|th)?/i);
+  if (!match) return `${date} Workshop`;
+  const month = new Date(`${match[1]} 1, 2000`).toLocaleString("en-US", { month: "long" });
+  return `${month} ${match[2]} Workshop`;
+}
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
   const { orders, hasAllOrdersAccess } = await loadAllOrders(admin);
@@ -175,9 +182,9 @@ export default function Index() {
     const cell = (value: string | number, style?: string) => `<Cell${style ? ` ss:StyleID="${style}"` : ""}><Data ss:Type="${typeof value === "number" ? "Number" : "String"}">${xml(String(value))}</Data></Cell>`;
     const row = (values: (string | number)[], styles: (string | undefined)[] = []) => `<Row>${values.map((value, index) => cell(value, styles[index])).join("")}</Row>`;
     const lines = [
-      row([`${label.replaceAll("-", " ")} workshop`], ["Title"]),
+      row([workshopTitle(sorted[0]?.date || label)], ["Title"]),
       row(["WORKSHOP STATUS", `Date: ${sorted[0]?.date || label}`], ["Section", "Body"]),
-      row(["Product type", ...sessions.map(([time], index) => `Session ${index + 1} (${time}) count`), "Total"], ["Header"]),
+      row(["Product type", ...sessions.map(([time], index) => `Session ${index + 1} (${time}) counts`), "Total"], ["Header"]),
       ...products.map((product) => {
         const counts = sessions.map(([, session]) => sorted.filter((item) => (item.product || item.event) === product && item.time === session.time).reduce((sum, item) => sum + item.places, 0));
         return row([product, ...counts, counts.reduce((sum, count) => sum + count, 0)]);
@@ -186,7 +193,7 @@ export default function Index() {
       row([""]),
       ...sessions.flatMap(([time], sessionIndex) => {
         const group = sorted.filter((item) => item.time === time);
-        return [row([`Session ${sessionIndex + 1}: ${time} list`], ["Section"]), row(["#", "Order ID", "Name", "Product type", "Email address", "Workshop date", "Session time"], Array(7).fill("Header")), ...group.map((item, index) => row([index + 1, item.orderName, item.customerName, item.product || item.event, item.email, item.date, item.time]))];
+        return [row([`Session ${sessionIndex + 1}: ${time} – Participants List`], ["Section"]), row(["Number", "Order ID", "First Name & Last Name", "Product Type", "Email Address", "Workshop Date", "Session Time"], Array(7).fill("Header")), ...group.map((item, index) => row([index + 1, item.orderName, item.customerName, item.product || item.event, item.email, item.date, item.time]))];
       }),
     ];
     const workbook = `<?xml version="1.0" encoding="UTF-8"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet" xmlns:x="urn:schemas-microsoft-com:office:excel"><Styles><Style ss:ID="Title"><Font ss:Bold="1" ss:Size="16"/></Style><Style ss:ID="Section"><Font ss:Bold="1" ss:Size="11"/><Interior ss:Color="#D9EAF7" ss:Pattern="Solid"/></Style><Style ss:ID="Header"><Font ss:Bold="1"/><Interior ss:Color="#EEEEEE" ss:Pattern="Solid"/></Style><Style ss:ID="Body"><Alignment ss:Vertical="Center"/></Style></Styles><Worksheet ss:Name="Workshop"><Table>${lines.join("")}</Table><WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel"><PageSetup><Layout x:Orientation="Landscape"/><PageMargins x:Bottom="0.25" x:Left="0.25" x:Right="0.25" x:Top="0.25"/></PageSetup><FitToPage/><Print><FitWidth>1</FitWidth><FitHeight>1</FitHeight></Print><Selected/></WorksheetOptions></Worksheet></Workbook>`;
