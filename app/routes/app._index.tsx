@@ -176,7 +176,7 @@ export default function Index() {
     const lines = [
       row([`${label.replaceAll("-", " ")} workshop`], ["Title"]),
       row(["WORKSHOP STATUS", `Date: ${sorted[0]?.date || label}`], ["Section", "Body"]),
-      row(["Product", ...sessions.map(([time]) => `Session ${time} count`), "Total"], ["Header"]),
+      row(["Product type", ...sessions.map(([time], index) => `Session ${index + 1} (${time}) count`), "Total"], ["Header"]),
       ...products.map((product) => {
         const counts = sessions.map(([, session]) => sorted.filter((item) => (item.product || item.event) === product && item.time === session.time).reduce((sum, item) => sum + item.places, 0));
         return row([product, ...counts, counts.reduce((sum, count) => sum + count, 0)]);
@@ -270,9 +270,9 @@ export default function Index() {
               </select>
             </label>
             <label>
-              Session
+              Product type
               <select value={selectedSession} onChange={(event) => setSelectedSession(event.target.value)} style={{ display: "block", padding: "10px", minWidth: "220px", marginTop: "6px" }}>
-                <option value="">All sessions</option>
+                <option value="">All product types</option>
                 {availableSessions.map((session) => <option key={session} value={session}>{session === "-" ? "Session unavailable" : session}</option>)}
               </select>
             </label>
@@ -324,9 +324,9 @@ export default function Index() {
               <div key={key} style={{ border: "1px solid #c9cccf", borderRadius: "8px", padding: "16px" }}>
                 <s-stack direction="block" gap="small">
                   <s-heading>{rows[0].event}</s-heading>
-                  <s-text>{rows[0].date} · {rows[0].time} · {rows[0].session}</s-text>
+                  <s-text>{rows[0].date} · {rows[0].time} · Product type: {rows[0].product}</s-text>
                   <s-text>{rows.reduce((total, row) => total + row.places, 0)} booked places · {new Set(rows.map((row) => row.orderName)).size} orders</s-text>
-                  <s-button onClick={() => downloadExcel(rows, `${rows[0].date}-${rows[0].event}-${rows[0].time}-${rows[0].session}`)}>Download this session (.xls)</s-button>
+                  <s-button onClick={() => downloadExcel(rows, `${rows[0].date}-${rows[0].event}-${rows[0].time}-${rows[0].product}`)}>Download this product type (.xls)</s-button>
                 </s-stack>
               </div>
             ))}

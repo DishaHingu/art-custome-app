@@ -136,8 +136,14 @@ export function dashboardOrder(order: ShopifyOrder) {
     fulfillmentStatus: order.displayFulfillmentStatus,
     customerName: [order.billingAddress?.firstName, order.billingAddress?.lastName].filter(Boolean).join(" "),
     email: order.email || "",
-    sessions: order.lineItems.nodes.length ? order.lineItems.nodes.flatMap((item) =>
-      Array.from({ length: Math.max(1, item.currentQuantity) }, () => ({ ...parseSession(item.title, item.variantTitle), product: item.title, places: item.currentQuantity > 0 ? 1 : 0 })))
-      : [{ ...parseSession("No line items", null), places: 0 }],
+    sessions: order.lineItems.nodes.length ? order.lineItems.nodes.flatMap((item) => {
+      const parsedSession = parseSession(item.title, item.variantTitle);
+      return Array.from({ length: Math.max(1, item.currentQuantity) }, () => ({
+        ...parsedSession,
+        product: parsedSession.session !== "-" ? parsedSession.session : item.title,
+        places: item.currentQuantity > 0 ? 1 : 0,
+      }));
+    })
+      : [{ ...parseSession("No line items", null), product: "-", places: 0 }],
   };
 }
