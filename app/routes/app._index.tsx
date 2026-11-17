@@ -35,6 +35,14 @@ function isNewOrder(createdAt: string) {
   return new Date(createdAt) >= cutoff;
 }
 
+function timeMinutes(value: string) {
+  const match = value.match(/(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?/i);
+  if (!match) return Number.MAX_SAFE_INTEGER;
+  let hour = Number(match[1]) % 12;
+  if (match[3]?.toUpperCase() === "PM") hour += 12;
+  return hour * 60 + Number(match[2] || 0);
+}
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
   const { orders, hasAllOrdersAccess } = await loadAllOrders(admin);
@@ -137,12 +145,12 @@ export default function Index() {
   const sessionGroups = useMemo(() => {
     const groups = new Map<string, TableRow[]>();
     for (const row of tableRows) {
-      const key = JSON.stringify([row.date, row.event, row.time, row.session]);
+      const key = JSON.stringify([row.date, row.event, row.time]);
       const group = groups.get(key) || [];
       group.push(row);
       groups.set(key, group);
     }
-    return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }));
+    return [...groups.entries()].sort(([, a], [, b]) => timeMinutes(a[0].time) - timeMinutes(b[0].time) || a[0].event.localeCompare(b[0].event));
   }, [tableRows]);
 
   const selectedDateRows = useMemo<TableRow[]>(() => orders.flatMap((order) =>
@@ -160,13 +168,6 @@ export default function Index() {
   ), [orders, selectedDate]);
 
   const downloadExcel = (rows: TableRow[], label: string) => {
-    const timeMinutes = (value: string) => {
-      const match = value.match(/(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?/i);
-      if (!match) return Number.MAX_SAFE_INTEGER;
-      let hour = Number(match[1]) % 12;
-      if (match[3]?.toUpperCase() === "PM") hour += 12;
-      return hour * 60 + Number(match[2] || 0);
-    };
     const sorted = [...rows].filter((row) => row.places > 0).sort((a, b) => timeMinutes(a.time) - timeMinutes(b.time) || a.orderName.localeCompare(b.orderName, undefined, { numeric: true }));
     const products = [...new Set(sorted.map((row) => row.product || row.event))];
     const sessions = [...new Map(sorted.map((row) => [row.time, row])).entries()].sort(([, a], [, b]) => timeMinutes(a.time) - timeMinutes(b.time));
@@ -304,7 +305,7 @@ export default function Index() {
 
           <s-stack direction="inline" gap="base" justifyContent="space-between">
             <s-text-field
-              label="Search orders, events, dates or sessions"
+            label="Search orders, events, dates or product types"
             value={search}
             onInput={(event) => {
               setSearch(
@@ -317,20 +318,8 @@ export default function Index() {
             </s-button>
           </s-stack>
 
-          <s-heading>{tableRows.reduce((total, row) => total + row.places, 0)} booked places · {sessionGroups.length} date/session groups</s-heading>
-          <s-text>Select a workshop date to download its complete report. The report includes counts and session lists for all orders on that date, regardless of the dashboard search or session filter.</s-text>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "12px" }}>
-            {sessionGroups.map(([key, rows]) => (
-              <div key={key} style={{ border: "1px solid #c9cccf", borderRadius: "8px", padding: "16px" }}>
-                <s-stack direction="block" gap="small">
-                  <s-heading>{rows[0].event}</s-heading>
-                  <s-text>{rows[0].date} · {rows[0].time} · Product type: {rows[0].product}</s-text>
-                  <s-text>{rows.reduce((total, row) => total + row.places, 0)} booked places · {new Set(rows.map((row) => row.orderName)).size} orders</s-text>
-                  <s-button onClick={() => downloadExcel(rows, `${rows[0].date}-${rows[0].event}-${rows[0].time}-${rows[0].product}`)}>Download this product type (.xls)</s-button>
-                </s-stack>
-              </div>
-            ))}
-          </div>
+          <s-heading>{tableRows.reduce((total, row) => total + row.places, 0)} booked places · {sessionGroups.length} workshop sessions</s-heading>
+          <s-text>The filtered results below are grouped by workshop time. Product types are counted inside each session, followed by that session’s participant list.</s-text>
 
           {tableRows.length === 0 ? (
             <s-box padding="large">
@@ -343,31 +332,32 @@ export default function Index() {
               </s-text>
             </s-box>
           ) : (
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ borderCollapse: "collapse", minWidth: "900px", width: "100%" }}>
-                <thead>
-                  <tr>
-                    {["Order", "Order date", "Event", "Event date", "Time", "Session", "Payment", "Fulfillment"].map((heading) => (
-                      <th key={heading} style={{ borderBottom: "1px solid #c9cccf", padding: "12px 10px", textAlign: "left", whiteSpace: "nowrap" }}>{heading}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {tableRows.map((row) => (
-                    <tr key={row.id}>
-                      <td style={{ borderBottom: "1px solid #e1e3e5", padding: "12px 10px" }}>{row.orderName}</td>
-                      <td style={{ borderBottom: "1px solid #e1e3e5", padding: "12px 10px", whiteSpace: "nowrap" }}>{row.orderDate}</td>
-                      <td style={{ borderBottom: "1px solid #e1e3e5", padding: "12px 10px" }}>{row.event}</td>
-                      <td style={{ borderBottom: "1px solid #e1e3e5", padding: "12px 10px", whiteSpace: "nowrap" }}>{row.date}</td>
-                      <td style={{ borderBottom: "1px solid #e1e3e5", padding: "12px 10px", whiteSpace: "nowrap" }}>{row.time}</td>
-                      <td style={{ borderBottom: "1px solid #e1e3e5", padding: "12px 10px" }}>{row.session}</td>
-                      <td style={{ borderBottom: "1px solid #e1e3e5", padding: "12px 10px" }}>{row.financialStatus}</td>
-                      <td style={{ borderBottom: "1px solid #e1e3e5", padding: "12px 10px" }}>{row.fulfillmentStatus}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <s-stack direction="block" gap="base">
+              {sessionGroups.map(([key, rows], sessionIndex) => {
+                const products = [...new Set(tableRows.map((row) => row.product || row.event))];
+                const participants = [...rows].sort((a, b) => a.customerName.localeCompare(b.customerName) || a.orderName.localeCompare(b.orderName, undefined, { numeric: true }));
+                return (
+                  <div key={key} style={{ border: "1px solid #c9cccf", borderRadius: "8px", padding: "16px" }}>
+                    <s-heading>Session {sessionIndex + 1}: {rows[0].time}</s-heading>
+                    <s-text>{rows[0].event} · {rows[0].date} · {rows.reduce((total, row) => total + row.places, 0)} booked places</s-text>
+                    <h4>Product counts</h4>
+                    <div style={{ overflowX: "auto" }}>
+                      <table style={{ borderCollapse: "collapse", width: "100%", marginBottom: "16px" }}>
+                        <thead><tr>{["Product type", "Count"].map((heading) => <th key={heading} style={{ borderBottom: "1px solid #c9cccf", padding: "8px", textAlign: "left" }}>{heading}</th>)}</tr></thead>
+                        <tbody>{products.map((product) => <tr key={product}><td style={{ borderBottom: "1px solid #e1e3e5", padding: "8px" }}>{product}</td><td style={{ borderBottom: "1px solid #e1e3e5", padding: "8px" }}>{rows.filter((row) => (row.product || row.event) === product).reduce((total, row) => total + row.places, 0)}</td></tr>)}</tbody>
+                      </table>
+                    </div>
+                    <h4>Session {sessionIndex + 1} participant list</h4>
+                    <div style={{ overflowX: "auto" }}>
+                      <table style={{ borderCollapse: "collapse", minWidth: "760px", width: "100%" }}>
+                        <thead><tr>{["#", "Order ID", "Name", "Product type", "Email address", "Workshop date", "Session time"].map((heading) => <th key={heading} style={{ borderBottom: "1px solid #c9cccf", padding: "8px", textAlign: "left", whiteSpace: "nowrap" }}>{heading}</th>)}</tr></thead>
+                        <tbody>{participants.map((row, index) => <tr key={row.id}>{[index + 1, row.orderName, row.customerName, row.product || row.event, row.email, row.date, row.time].map((value, cellIndex) => <td key={cellIndex} style={{ borderBottom: "1px solid #e1e3e5", padding: "8px" }}>{value}</td>)}</tr>)}</tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })}
+            </s-stack>
           )}
 
         </s-stack>
